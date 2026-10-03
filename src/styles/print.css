@@ -1,0 +1,33 @@
+#print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  html.printing body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  html.printing #print-root {
+    display: block;
+  }
+
+  html.printing body {
+    background: #fff !important;
+    background-image: none !important;
+  }
+
+  #print-root .doc-paper {
+    max-width: none !important;
+    width: 190mm !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    break-inside: avoid;
+  }
+}

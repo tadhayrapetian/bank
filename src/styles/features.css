@@ -1,0 +1,72 @@
+/* ── Dashboard ── */
+.dash-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 24px;
+  padding: 22px 24px;
+  background:
+    radial-gradient(ellipse at 0% 0%, var(--accent-soft), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, var(--magic-soft), transparent 60%),
+    var(--surface);
+  overflow: hidden;
+}
+
+.dash-hero-id {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  position: relative;
+}
+
+.dash-rune {
+  color: var(--accent);
+  opacity: 0.5;
+  align-self: flex-start;
+}
+
+.dash-hero-figures {
+  display: grid;
+  gap: 16px;
+  align-content: center;
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+}
+
+.card-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+}
+
+.card-strip-item {
+  flex: 0 0 min(240px, 78%);
+  scroll-snap-align: start;
+  text-decoration: none;
+  transition: transform var(--dur) var(--ease);
+}
+
+.card-strip-item:hover {
+  transform: translateY(-3px);
+  text-decoration: none;
+}
+
+@media (max-width: 960px) {
+  .dash-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .dash-hero-figures {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+
+  .dash-rune {
+    display: none;
+  }
+}

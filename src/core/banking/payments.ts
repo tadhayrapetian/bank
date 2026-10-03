@@ -240,7 +240,7 @@ export async function deleteTemplate(id: string) {
   await audit({ action: 'template.delete', object: 'template', objectId: id });
 }
 
-export async function useTemplate(id: string) {
+export async function markTemplateUsed(id: string) {
   const t = await db.templates.get(id);
   if (t) await db.templates.update(id, { uses: t.uses + 1 });
 }
