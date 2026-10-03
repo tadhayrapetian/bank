@@ -1,10 +1,13 @@
 /** Original heraldry of the Exchequer of Aldermoor: crest, emblems and rune sigils (hand-drawn SVG). */
 import type { ReactNode, SVGProps } from 'react';
+import { useUI } from '@/state/ui';
+import { translate } from '@/i18n';
 
 export function Crest({ size = 48, motto = false, ...rest }: { size?: number; motto?: boolean } & SVGProps<SVGSVGElement>) {
   const h = motto ? size * 1.32 : size * 1.1;
+  const lang = useUI((s) => s.lang);
   return (
-    <svg viewBox={motto ? '0 0 120 158' : '0 0 120 132'} width={size} height={h} role="img" aria-label="Crest of the Exchequer of Aldermoor" {...rest}>
+    <svg viewBox={motto ? '0 0 120 158' : '0 0 120 132'} width={size} height={h} role="img" aria-label={translate(lang, 'app.bank')} {...rest}>
       <defs>
         <linearGradient id="crest-gold" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#f2d38a" />
