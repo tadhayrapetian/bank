@@ -23,7 +23,9 @@ type PushListener = (n: AppNotification) => void;
 const pushListeners = new Set<PushListener>();
 export function onPush(fn: PushListener) {
   pushListeners.add(fn);
-  return () => pushListeners.delete(fn);
+  return () => {
+    pushListeners.delete(fn);
+  };
 }
 
 let muted = false;

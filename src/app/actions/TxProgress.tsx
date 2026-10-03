@@ -1,5 +1,6 @@
 /** Live view of a transaction going through the pipeline, ending in a receipt or an explained error. */
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { CheckCircle2, FileText, ExternalLink } from 'lucide-react';
 import { useLive } from '@/hooks/data';
 import { db } from '@/core/db/db';
@@ -34,7 +35,7 @@ export function TxProgress({ txId, error, expected }: { txId: string | null; err
       <KV items={[
         [t('common.reference'), <CodeTag>{txn.ref}</CodeTag>],
         [t('common.txId'), <CodeTag>{txn.id}</CodeTag>],
-        ...(txn.fx ? [[t('exchange.fxId'), <CodeTag>{txn.fx.id}</CodeTag>] as [string, JSX.Element]] : []),
+        ...(txn.fx ? [[t('exchange.fxId'), <CodeTag>{txn.fx.id}</CodeTag>] as [string, ReactNode]] : []),
         [t('common.recipient'), txn.recipient.name],
         ...(txn.creditAmount && txn.creditCurrency && txn.creditCurrency !== txn.currency ? [[t('exchange.youReceive'), f.money(txn.creditAmount, txn.creditCurrency)] as [string, string]] : []),
         ...(txn.fee ? [[t('common.fee'), f.money(txn.fee, txn.feeCurrency)] as [string, string]] : []),

@@ -12,7 +12,7 @@ import type { TKey } from '@/i18n';
 export interface NavItem {
   path: string;
   label: TKey;
-  icon: ComponentType<{ size?: number }>;
+  icon: ComponentType<{ size?: number | string }>;
   perm?: Permission;
   badge?: 'notifications' | 'mail' | 'messages' | 'requests' | 'approvals' | 'fraud';
 }

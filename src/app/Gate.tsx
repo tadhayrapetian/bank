@@ -47,7 +47,7 @@ function GateFrame({ children, aside }: { children: ReactNode; aside?: ReactNode
   const { t } = useT();
   const ui = useUI();
   return (
-    <div style={{ minHeight: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', placeItems: 'center', padding: '24px 16px' }}>
+    <div className="gate" style={{ minHeight: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', placeItems: 'center', padding: '24px 16px' }}>
       <div className="grid" style={{ width: 'min(1060px, 100%)', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: 22, alignItems: 'start' }}>
         <div className="panel ornate" style={{ padding: '28px 26px' }}>
           <div className="row" style={{ gap: 14, marginBottom: 18 }}>

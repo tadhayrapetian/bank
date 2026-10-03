@@ -1,0 +1,26 @@
+/** English — dashboard. */
+export const dashboard = {
+  dashboard: {
+    morning: 'Good morning',
+    afternoon: 'Good afternoon',
+    evening: 'Good evening',
+    summary: 'Summary of your holdings',
+    totalBalance: 'Total balance',
+    inBase: 'All accounts converted to {name} at the demonstration mid rate.',
+    available: 'Available',
+    blocked: 'Blocked',
+    holdsCount: '{n} active holds',
+    thisMonth: 'Net this month',
+    creditUsed: 'Credit used: {amount}',
+    operations: 'Recent operations',
+    incoming: 'Incoming',
+    outgoing: 'Outgoing',
+    pending: 'Pending',
+    noOperations: 'No operations here yet.',
+    currencyAccounts: 'Currency holdings',
+    noAccounts: 'You have no funded accounts yet.',
+    noCards: 'No cards issued yet.',
+    noNotifications: 'No notifications.',
+    accountsLine: '{n} accounts',
+  },
+};

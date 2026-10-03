@@ -263,4 +263,10 @@ export const shell = {
     rotate: 'Rotate',
     resize: 'Resize',
   },
+  guard: {
+    eyebrow: 'Restricted chamber',
+    title: 'Your seal does not open this door',
+    text: 'This page requires the “{perm}” authority, held by: {roles}. Switch to a demonstration identity that holds it.',
+    switchTo: 'Identities with this authority',
+  },
 };

@@ -1299,7 +1299,7 @@ button.list-item:hover {
 /* ── Quick actions ── */
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 10px;
 }
 
@@ -1469,4 +1469,22 @@ button.list-item:hover {
 
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }
+}
+
+.th-sort {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.th-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.table.dense td,
+.table.dense th {
+  padding: 7px 10px;
 }

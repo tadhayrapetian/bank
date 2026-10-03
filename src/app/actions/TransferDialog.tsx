@@ -154,8 +154,8 @@ export function TransferDialog({ onClose, params }: { onClose: () => void; param
           <div className="row-between">
             <Segmented label={t('transfer.mode')} value={mode} onChange={(v) => { setMode(v); setResolved(null); }} options={[{ value: 'client', label: t('transfer.byClient') }, { value: 'number', label: t('transfer.byNumber') }, { value: 'own', label: t('transfer.own') }]} />
             {templates.length > 0 && (
-              <Select aria-label={t('transfer.markTemplateUsed')} value="" onChange={(e) => applyTemplate(e.target.value)} style={{ width: 'auto' }}>
-                <option value="">{t('transfer.markTemplateUsed')}</option>
+              <Select aria-label={t('transfer.useTemplate')} value="" onChange={(e) => applyTemplate(e.target.value)} style={{ width: 'auto' }}>
+                <option value="">{t('transfer.useTemplate')}</option>
                 {templates.map((tp) => <option key={tp.id} value={tp.id}>{tp.name}</option>)}
               </Select>
             )}

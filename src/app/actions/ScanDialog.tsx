@@ -1,7 +1,7 @@
 /** QR scanner: live camera (jsQR), image upload, paste, or pick one of your own codes. Routes to the right flow. */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Upload, ClipboardPaste, ScanLine } from 'lucide-react';
+import { Camera, ClipboardPaste, ScanLine } from 'lucide-react';
 import jsQR from 'jsqr';
 import { Modal } from '@/ui/Modal';
 import { Button, Field, Input, Alert, Segmented } from '@/ui/primitives';
@@ -179,7 +179,6 @@ export function ScanDialog({ onClose }: { onClose: () => void }) {
       )}
       {status && <Alert tone="warning">{status}</Alert>}
       <div className="xsmall muted">{t('qr.formats')} {(['pay', 'transfer', 'receive', 'account', 'document', 'verify', 'invoice'] as const).map((k) => tx(`qr.kinds.${k}`)).join(' · ')}</div>
-      <span className="sr-only"><Upload /></span>
     </Modal>
   );
 }

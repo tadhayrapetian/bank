@@ -34,7 +34,6 @@ export function DocumentPaper({ doc, editable, selectedId, onSelect, onElementCh
   const { t, tx, lang } = useT();
   const f = useFmt();
   const paperRef = useRef<HTMLDivElement>(null);
-  const d = doc.data as Data;
   const dept = (DEPARTMENTS[doc.department as DeptCode]?.name ? doc.department : 'ADM') as DeptCode;
   const verifyUrl = qrPayload('verify', { doc: doc.id, code: doc.verificationCode });
 
