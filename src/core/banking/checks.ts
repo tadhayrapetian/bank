@@ -96,6 +96,8 @@ export async function signCheck(id: string, kind: SignatureKind, strokes?: strin
 
 export async function stampCheck(id: string, sealId: string) {
   const c = await getCheckOrThrow(id);
+  if (!['draft', 'issued'].includes(c.status)) throw new BankError('INVALID_STATE', { status: c.status });
+  if (c.issuerId !== actor().userId && !can('teller.desk') && !can('documents.official') && !actor().system) throw new BankError('PERMISSION_DENIED');
   const seal = sealById(sealId);
   if (!seal) throw new BankError('NOT_FOUND', { object: 'seal' });
   if (seal.official && !can('documents.official')) throw new BankError('PERMISSION_DENIED', { reason: 'official seal' });
@@ -148,23 +150,26 @@ export async function cancelCheck(id: string, reason = 'cancelled by issuer') {
   const c = await getCheckOrThrow(id);
   if (!['draft', 'issued'].includes(c.status)) throw new BankError('INVALID_STATE', { status: c.status });
   if (c.issuerId !== actor().userId && !can('teller.desk') && !actor().system) throw new BankError('PERMISSION_DENIED');
-  if (c.kind === 'cashier' && c.status === 'issued') {
-    await execute({
-      draft: {
-        type: 'refund', amount: c.amount, currency: c.currency, toAccountId: c.accountId, sender: { name: "Cashier's Checks Outstanding" },
-        recipient: { name: c.issuerName }, description: `Cancellation of cashier's check ${c.number}`, category: 'transfers', channel: 'system', refPrefix: 'CHQ',
-        partyIds: [c.issuerId],
-      },
-      screen: false,
-      plan: () => [{ memo: `Cancel check ${c.number}`, allowOverdraft: true, lines: [
-        { accountId: GL.CHECKS, currency: c.currency, side: 'D', amount: c.amount },
-        { accountId: c.accountId, currency: c.currency, side: 'C', amount: c.amount },
-      ] }],
-    });
-  }
+  if (c.kind === 'cashier' && c.status === 'issued') await refundCashier(c, `Cancellation of cashier's check ${c.number}`);
   await step(c, 'cancelled', false, reason, { status: 'cancelled' });
   await db.documents.update(c.documentId!, { status: 'cancelled' });
   await audit({ action: 'check.cancel', object: 'check', objectId: id, details: reason });
+}
+
+/** Return the pre-funded amount of an unpaid cashier's check to the issuer's account. */
+async function refundCashier(c: Check, description: string) {
+  return execute({
+    draft: {
+      type: 'refund', amount: c.amount, currency: c.currency, toAccountId: c.accountId, sender: { name: "Cashier's Checks Outstanding" },
+      recipient: { name: c.issuerName }, description, category: 'transfers', channel: 'system', refPrefix: 'CHQ',
+      partyIds: [c.issuerId], meta: { checkId: c.id },
+    },
+    screen: false,
+    plan: () => [{ memo: `Refund check ${c.number}`, allowOverdraft: true, lines: [
+      { accountId: GL.CHECKS, currency: c.currency, side: 'D', amount: c.amount },
+      { accountId: c.accountId, currency: c.currency, side: 'C', amount: c.amount },
+    ] }],
+  });
 }
 
 export async function findCheckByNumber(number: string) {
@@ -187,6 +192,9 @@ export async function presentCheck(number: string, code: string, depositAccountI
   if (c.status !== 'issued') throw new BankError('INVALID_STATE', { status: c.status });
   const dep = await getAccountOrThrow(depositAccountId);
   if (!canOperate(dep)) throw new BankError('PERMISSION_DENIED');
+  // a check made out to a named client can only be deposited into that client's account
+  if (c.payeeId && !dep.partyIds.includes(c.payeeId)) throw new BankError('INVALID_RECIPIENT', { reason: 'payee', check: c.number });
+  if (dep.status !== 'active') throw new BankError('ACCOUNT_FROZEN', { account: dep.number });
   await step(c, 'review', true, 'presented', { status: 'presented', presentedAt: nowISO(), depositAccountId: dep.id, payeeId: c.payeeId ?? dep.ownerId });
   return processCheck(c.id);
 }
@@ -203,6 +211,13 @@ export async function processCheck(id: string) {
   const reject = async (reason: string, bounce: boolean) => {
     await step(c, 'rejected', false, reason, { status: 'rejected', rejectReason: reason });
     await db.documents.update(c.documentId!, { status: 'cancelled' });
+    if (c.kind === 'cashier') {
+      try {
+        await refundCashier(c, `Return of cashier's check ${c.number}`);
+      } catch {
+        /* refund can be retried by staff */
+      }
+    }
     if (bounce && c.kind === 'personal') {
       const fee = usdTo(getSettings().bounceFeeUSD, c.currency);
       try {
@@ -261,8 +276,43 @@ export async function expireChecks() {
   const now = nowISO();
   const due = (await db.checks.where('status').equals('issued').toArray()).filter((c) => c.expiresAt < now);
   for (const c of due) {
+    if (c.kind === 'cashier') {
+      try {
+        await refundCashier(c, `Expiry of cashier's check ${c.number}`);
+      } catch {
+        /* refund retried by staff from the check page */
+      }
+    }
     await step(c, 'expired', false, 'validity elapsed', { status: 'expired' });
     await db.documents.update(c.documentId!, { status: 'expired' });
   }
   return due.length;
+}
+
+/** Expire one issued check: automatically once its validity has elapsed, or at once by a teller. */
+export async function expireCheck(id: string) {
+  const c = await getCheckOrThrow(id);
+  if (c.status !== 'issued') throw new BankError('INVALID_STATE', { status: c.status });
+  const lapsed = c.expiresAt < nowISO();
+  if (!lapsed && !can('teller.desk') && !actor().system) throw new BankError('PERMISSION_DENIED', { reason: 'not yet expired' });
+  if (c.kind === 'cashier') await refundCashier(c, `Expiry of cashier's check ${c.number}`);
+  await step(c, 'expired', false, lapsed ? 'validity elapsed' : 'expired by teller', { status: 'expired' });
+  await db.documents.update(c.documentId!, { status: 'expired' });
+  await audit({ action: 'check.expire', object: 'check', objectId: id, details: c.number });
+}
+
+/** A teller returns a presented check unpaid (e.g. stale-dated, altered, stop order). */
+export async function rejectCheck(id: string, reason: string) {
+  if (!can('teller.desk') && !actor().system) throw new BankError('PERMISSION_DENIED', { permission: 'teller.desk' });
+  const c = await getCheckOrThrow(id);
+  if (!['presented', 'processing'].includes(c.status)) throw new BankError('INVALID_STATE', { status: c.status });
+  const why = reason.trim() || 'returned_by_teller';
+  if (c.kind === 'cashier') await refundCashier(c, `Return of cashier's check ${c.number}`);
+  await step(c, 'rejected', false, why, { status: 'rejected', rejectReason: why });
+  await db.documents.update(c.documentId!, { status: 'cancelled' });
+  await audit({ action: 'check.reject', object: 'check', objectId: id, result: 'failure', details: why });
+  for (const u of [c.issuerId, c.payeeId].filter(Boolean) as string[]) {
+    await sendMail(u, 'check_rejected', { number: c.number, reason: why, amt: c.amount, ccy: c.currency }, c.documentId);
+    await notify(u, { category: 'payments', titleKey: 'n.check.rejected.title', bodyKey: 'n.check.rejected.body', params: { number: c.number, reason: why }, link: `/checks/${id}`, priority: 'high' });
+  }
 }

@@ -350,3 +350,121 @@ export async function linkDocuments(a: string, b: string) {
   await db.documents.update(a, { links: { ...da.links, docIds: [...new Set([...da.links.docIds, b])] } });
   await db.documents.update(b, { links: { ...dbb.links, docIds: [...new Set([...dbb.links.docIds, a])] } });
 }
+
+/* ── Seal workbench, free-form documents, signature forensics ── */
+
+export interface SealPlacement {
+  x: number;
+  y: number;
+  w: number;
+  rotation: number;
+  opacity: number;
+}
+
+/**
+ * Press a registered seal onto a document. Official seals of the Exchequer may
+ * only be applied by staff holding `documents.official`; the impression is
+ * saved as a new version of the document (seals do not alter the signed
+ * content hash, so existing signatures stay valid).
+ */
+export async function applySeal(
+  id: string,
+  sealId: string,
+  place: SealPlacement,
+  opts: { ink?: string; intensity?: number; dated?: boolean } = {},
+): Promise<BankDocument> {
+  const seal = sealById(sealId);
+  if (!seal) throw new BankError('NOT_FOUND', { object: 'seal', id: sealId });
+  if (seal.official && !can('documents.official')) throw new BankError('PERMISSION_DENIED', { reason: 'official seal', seal: sealId });
+  const doc = await getDocumentOrThrow(id);
+  if (doc.status === 'cancelled' || doc.status === 'expired') throw new BankError('DOCUMENT_EXPIRED', { status: doc.status });
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo));
+  const el: DocElement = {
+    id: uid('EL', 8),
+    kind: 'seal',
+    x: clamp(place.x, -5, 98),
+    y: clamp(place.y, -5, 98),
+    w: clamp(place.w, 4, 60),
+    rotation: Math.round(clamp(place.rotation, -180, 180)),
+    opacity: clamp(place.opacity, 0.15, 1),
+    z: Math.max(10, ...doc.elements.map((e) => e.z)) + 1,
+    props: {
+      sealId,
+      ink: opts.ink ?? seal.ink,
+      intensity: clamp(opts.intensity ?? 0.85, 0.15, 1),
+      ...(opts.dated ?? seal.dated ? { date: nowISO().slice(0, 10) } : {}),
+    },
+  };
+  const next = await saveDocumentVersion(id, { elements: [...doc.elements, el] }, `Seal impressed: ${sealId}`);
+  await audit({ action: 'document.seal', object: 'document', objectId: id, details: `${doc.number} ${sealId}` });
+  return next;
+}
+
+/** Document kinds that may be drafted from scratch in the Document Editor. */
+export const FREEFORM_TYPES: DocType[] = ['letter', 'application', 'authorization', 'contract', 'payment_order', 'memo', 'notice', 'certificate'];
+/** Kinds reserved to officers of the Exchequer. */
+export const OFFICIAL_ONLY_TYPES: DocType[] = ['memo', 'notice', 'certificate'];
+
+export async function createDraftDocument(input: {
+  type: DocType;
+  title: string;
+  classification?: Classification;
+  body?: string[];
+  data?: Record<string, unknown>;
+  partyIds?: string[];
+}): Promise<BankDocument> {
+  const a = actor();
+  if (!FREEFORM_TYPES.includes(input.type)) throw new BankError('VALIDATION', { field: 'type' });
+  if (OFFICIAL_ONLY_TYPES.includes(input.type) && !can('documents.official')) throw new BankError('PERMISSION_DENIED', { reason: 'official document type' });
+  if (!input.title.trim()) throw new BankError('VALIDATION', { field: 'title' });
+  const els = defaultElements(input.type);
+  els.push(element('docnumber', 64, 30, 30, {}, 0, 1), element('date', 64, 33.5, 30, { text: nowISO().slice(0, 10) }, 0, 1));
+  const doc = await createDocument({
+    type: input.type,
+    title: input.title.trim(),
+    ownerId: a.userId,
+    partyIds: input.partyIds,
+    classification: input.classification ?? (input.type === 'memo' ? 'internal' : 'confidential'),
+    data: input.data ?? {},
+    body: input.body ?? [],
+    status: 'draft',
+    elements: els,
+  });
+  return doc;
+}
+
+export interface SignatureFinding {
+  sigId: string;
+  hashMatches: boolean;
+  /** First version after signing whose content no longer matches the signed hash. */
+  alteredIn?: { version: number; at: string; authorName: string; note: string };
+}
+
+/** For each signature, find whether — and in which version — the signed content was altered. */
+export async function signatureForensics(doc: BankDocument): Promise<SignatureFinding[]> {
+  const current = contentHash(doc);
+  const versions = (await db.docVersions.where('docId').equals(doc.id).toArray()).sort((a, b) => a.version - b.version);
+  return doc.signatures.map((sig) => {
+    if (sig.contentHash === current) return { sigId: sig.id, hashMatches: true };
+    const signedAt = versions.find((v) => v.snapshot.signatures.some((s) => s.id === sig.id));
+    const after = versions.filter((v) => v.version > (signedAt?.version ?? 0));
+    const changed = after.find((v) => contentHash(v.snapshot) !== sig.contentHash);
+    return {
+      sigId: sig.id,
+      hashMatches: false,
+      alteredIn: changed ? { version: changed.version, at: changed.at, authorName: changed.authorName, note: changed.note } : undefined,
+    };
+  });
+}
+
+/** Quick integrity check without the cryptographic step (for lists). */
+export function quickSignatureState(doc: BankDocument): SignatureState {
+  if (!doc.signatures.length) return 'unsigned';
+  const h = contentHash(doc);
+  return doc.signatures.every((s) => s.contentHash === h) ? 'verified' : 'invalid';
+}
+
+/** Documents visible to the acting user. Officers and archivists see the whole registry. */
+export function canSeeDocument(doc: BankDocument, a = actor()): boolean {
+  return a.system || doc.partyIds.includes(a.userId) || doc.authorId === a.userId || can('documents.official', a) || can('archive.all', a) || doc.classification === 'public';
+}
